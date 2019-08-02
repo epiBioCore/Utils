@@ -1,0 +1,414 @@
+---
+title: "19-027 RNA-Seq analysis for Mona"
+output: html_document
+---
+
+
+```{r setup}
+
+require(DESeq2) || stop("The DESeq2 library is not available!")
+require(gplots) || stop("The gplots library is not available!")
+require(RColorBrewer) || stop("The RcolorBrewer library is not available!")
+require(reshape2) || stop("The reshape2 library is not available!")
+require(GenomicFeatures) || stop("The GenomicFeatures library is not available!")
+require(ggplot2) || stop("The ggplot2 library is not available!")
+require(tidyverse) || stop("The tidverse library is not available!")
+require(pheatmap) || stop("The pheatmap library is not available!")
+require(biomaRt) || stop("The biomaRt library is not available!")
+require(NMF) || stop("The NMF library is not available!")
+theme_set(theme_bw())
+
+
+
+out <- "./DEseq2"
+if(!dir.exists(out)) {dir.create(out)}
+```
+
+```{r functions}
+## This Function will allow us to make a MA plot from a list of results objects
+
+maPlot.lists <- function(x,i) {
+  pdf(paste(i, '_maPlot.pdf', sep=''))
+  plotMA(x, main=paste(basename(i), 'alpha=0.05', sep=' '), 
+         alpha=0.01, ylim=c(-6,6))
+  abline(h=c(2,-2), col='red')
+  dev.off()
+}
+
+##This function will add either count means for fpkm means to a DE table
+addMeans<-function(x,means,comp) {
+  detable<-as.data.frame(x)
+  
+  ##get the two group names
+  groups<-unlist(strsplit(comp,"vs"))
+  group_means<-means[,groups]
+  
+  ##match the gene names in the mean df with the results df
+  group_means<-group_means[match(rownames(detable),rownames(group_means)),]
+  detable<-cbind(detable,group_means)
+  return(detable)}
+
+
+## modified DESeq2 plotPCA function, to plot addtional pc dimensions
+plotPCA2 <- function (object, intgroup = "condition", ntop = 500, dim1= 1,dim2 = 2,returnData = FALSE) 
+{
+  rv <- rowVars(assay(object))
+  select <- order(rv, decreasing = TRUE)[seq_len(min(ntop, length(rv)))]
+  pca <- prcomp(t(assay(object)[select, ]))
+  percentVar <- pca$sdev^2/sum(pca$sdev^2)
+  if (!all(intgroup %in% names(colData(object)))) {
+    stop("the argument 'intgroup' should specify columns of colData(dds)")
+  }
+  intgroup.df <- as.data.frame(colData(object)[, intgroup, 
+                                               drop = FALSE])
+  group <- if (length(intgroup) > 1) {
+    factor(apply(intgroup.df, 1, paste, collapse = ":"))
+  }
+  else {
+    colData(object)[[intgroup]]
+  }
+  d <- data.frame( pca$x[, dim1],pca$x[, dim2], group = group, 
+                  intgroup.df, name = colnames(object))
+  dim_names <- paste0("PC",c(dim1,dim2))
+  colnames(d)[1:2] <- dim_names
+  if (returnData) {
+    attr(d, "percentVar") <- percentVar[c(dim1,dim2)]
+    return(d)
+  }
+  ggplot(data = d, aes_string(x = dim_names[1], y = dim_names[2], color = "group")) + 
+    geom_point(size = 3) + xlab(paste0(dim_names[1],": ", round(percentVar[dim1] * 
+                                                        100), "% variance")) + ylab(paste0(dim_names[2],": ", round(percentVar[dim2] * 
+                                                                                                            100), "% variance")) + coord_fixed()
+}
+
+
+
+```
+
+Create DESeq2 object
+```{r load files}
+
+samples <- read.delim("../Mona_samples_for_DESeq2.txt",header=F,col.names = c("coreNumber","SampleName","Description","R1","R2","Genotype","Sex","Cancer","group","ind.n"))
+samples <- mutate(samples,ind.n=as.factor(ind.n))
+samples <- mutate(samples,Genotype=gsub("-/-","",Genotype))
+samples <- mutate(samples, group=gsub("-/-","",group))
+
+comparisons <- read.delim("../Mona_comparisons.txt",header=F,col.names = c("treat","control"),stringsAsFactors = F)
+
+counts <- read.csv("./Counts/featureCounts_for_DESeq2.csv",row.names = 1,check.names = F)
+
+colData<- data.frame(row.names = samples$coreNumber,
+                     group=samples$group,
+                     genotype=samples$Genotype,
+                     sex=samples$Sex,
+                     cancer=samples$Cancer,
+                     ind=samples$ind.n,
+                     replicate=samples$SampleName)
+```
+
+```{r}
+colData <- colData[match(colnames(counts),rownames(colData)),]
+colData$replicate <- droplevels(colData$replicate)
+colData$group <- relevel(colData$group,ref="WT.Male.Normal")
+dds <- DESeqDataSetFromMatrix(countData = counts,colData = colData,design = ~ind + group)
+```
+
+
+First, remove the one sample that doesn't cluster on the PCA plot. make plots separated by Sex, then by genotype and cancer status
+```{r}
+## first add variables
+rld <- rlog(dds)
+
+
+plotPCA2(rld,intgroup = "group")
+
+pca_data <- plotPCA(rld,intgroup = "group",returnData=T)
+```
+What are the the two samples that are very different?
+```{r}
+filter(pca_data,PC1>100)
+```
+Those samples have 27 million and 36 million reads. There are 2 other samples (19-027-104, and 19-027-110), those had 6 millon and 8 million uniquely mapped reads. 
+```{r}
+colData[grepl("19-027-104|19-027-110",rownames(colData)),]
+```
+There are 2 other samples (19-027-104, and 19-027-110), those had 6 millon and 8 million uniquely mapped reads. 
+How samples are there in the WT.Female.Tumor and WT.Male.Normal groups, WT.Male.Tumor and KIKI.Male.Tumor
+```{r}
+count(colData,group)
+```
+All groups have 5 replicates, so it's fine if I remove them.
+```{r rm low samples}
+dds_19027104_19027110_19027116_19027136_rm <-dds[,!grepl("19-027-104|19-027-110|19-027-116|19-027-136",rownames(colData(dds)))]
+dds_19027104_19027110_19027116_19027136_rm<- estimateSizeFactors(dds_19027104_19027110_19027116_19027136_rm)
+dds_19027104_19027110_19027116_19027136_rm <- DESeq(dds_19027104_19027110_19027116_19027136_rm,betaPrior = T)
+```
+
+```{r pca plots}
+rld_19027104_19027110_19027116_19027136_rm <- rlog(dds_19027104_19027110_19027116_19027136_rm)
+
+plotPCA(rld_19027104_19027110_19027116_19027136_rm,intgroup="group")
+
+pdf(file=file.path(out,paste("PCA_pc1vspc2.pdf")))
+plotPCA(rld_19027104_19027110_19027116_19027136_rm,intgroup="group")
+dev.off()
+
+
+plotPCA2(rld_19027104_19027110_19027116_19027136_rm,intgroup="group",dim1=1,dim2=3)
+
+pdf(file=file.path(out,paste("PCA_pc1vspc3.pdf")))
+plotPCA2(rld_19027104_19027110_19027116_19027136_rm,intgroup="group",dim1=1,dim2=3)
+dev.off()
+
+plotPCA2(rld_19027104_19027110_19027116_19027136_rm,intgroup="group",dim1=2,dim2=3)
+
+pdf(file=file.path(out,paste("PCA_pc2vspc3.pdf")))
+plotPCA2(rld_19027104_19027110_19027116_19027136_rm,intgroup="group",dim1=2,dim2=3)
+dev.off()
+
+
+group <- c("genotype","sex","cancer","ind")
+dims <- list(c(1,2),c(1,3),c(2,3))
+map(group,function(x) {
+    map(dims,function(y) {
+      plotPCA2(rld_19027104_19027110_19027116_19027136_rm,intgroup = x,dim1=y[1],dim2 = y[2])
+    
+    })})
+
+
+```
+Normal vs Tumor is separated along PC1, sex is separated along PC3.
+Separate by sex.
+
+```{r}
+rld_male <- rld_19027104_19027110_19027116_19027136_rm[,colData(rld_19027104_19027110_19027116_19027136_rm)$sex == "Male"]
+rld_female <- rld_19027104_19027110_19027116_19027136_rm[,colData(rld_19027104_19027110_19027116_19027136_rm)$sex == "Female"]
+rld_by_sex <- list(Male=rld_male,
+                   Female=rld_female)
+
+group <- c("genotype","cancer","ind")
+dims <- list(c(1,2),c(1,3),c(2,3))
+map(rld_by_sex,function(r) {
+  map(group,function(x) {
+    map(dims,function(y) {
+      plotPCA2(r,intgroup = x,dim1=y[1],dim2 = y[2])
+    
+    })})})
+```
+
+```{r}
+
+map2(rld_by_sex,names(rld_by_sex), function(r,n) {
+  map(group,function(x) {
+    map(dims,function(y) {
+      
+      plotPCA2(r,intgroup = x,dim1=y[1],dim2 = y[2])
+      ggsave(file=file.path(out,paste0("PCA_",n,"_",x,"_pc",y[1],"vspc",y[2],".pdf")))
+    })})})
+```
+
+
+
+```{r counts}
+
+## Retrieve count data and clean up the data frame 
+count_data <- counts(dds_19027104_19027110_19027116_19027136_rm, normalized=T)
+colnames(count_data) <- colData(dds_19027104_19027110_19027116_19027136_rm)$replicate 
+
+
+## Here we will add mean counts for each sample to the count and fpkm data frames.
+## The is a purely convience operation to make the output tables more useful.
+## Then write those tables to file.
+
+count_means<-t(apply(count_data,1,function(x) tapply(x,colData(dds_19027104_19027110_19027116_19027136_rm)$group,mean,na.rm=T)))
+
+
+##count means and counts should be in the same order, but just in case....
+count_means<-count_means[match(rownames(count_data),rownames(count_means)),]
+
+count_data_with_means <- data.frame(cbind(count_data,count_means))
+
+write.csv(count_data_with_means, file=file.path(out,"19-027-104_19-027-110_19-027-116_19-027-136_rm_depthNormCount.csv"), quote=F)
+
+```
+
+```{r fpkms}
+
+
+##import table from cufflinks
+fpkms <- read.csv("./Cufflinks/cufflink_fpkms_all_samples.csv",header=T,stringsAsFactors=F,check.names=F)
+idx <- fpkms$GeneID
+fpkms <- as.matrix(fpkms[,-1])
+rownames(fpkms) <- idx
+#fpkms <- fpkms[,-1]
+
+
+##first match the gene names in dds object to cufflinks fpkm table
+fpkm_data<-fpkms[match(rownames(count_data),rownames(fpkms)),]
+
+
+##check that fpkm table is in same order as colData
+fpkm_data <- fpkm_data[,match(rownames(colData(dds_19027104_19027110_19027116_19027136_rm)),colnames(fpkm_data))]
+dim(fpkm_data)
+colnames(fpkm_data) <- colData(dds_19027104_19027110_19027116_19027136_rm)$replicate
+fpkm_means<-t(apply(fpkm_data,1,function(x) tapply(x,colData(dds_19027104_19027110_19027116_19027136_rm)$group,mean,na.rm=T)))
+
+
+#fpkm means and counts should be in the same order, but just in case....
+fpkm_means<-fpkm_means[match(rownames(fpkm_data),rownames(fpkm_means)),]
+
+fpkm_data_with_means <- data.frame(cbind(fpkm_data,fpkm_means),check.names =F)
+
+write.csv(fpkm_data_with_means, file=file.path(out,'19-027-104_19-027-110_19-027-116_19-027-136_fpkm_values.csv'), quote=F)
+
+
+
+```
+```{r dispEsts}
+
+## Plot the dispersion of the experiment to verify that the Algorithm's 
+## assumptions are valid for this dataset.  This will also show us if 
+## the variance is too LOW in the samples indicating an error in replication
+pdf(file = file.path(out,'19-027-104_19-027-110_19-027-116_19-027-136_rm_dispModel.pdf'))
+plotDispEsts(dds_19027104_19027110_19027116_19027136_rm)
+dev.off()
+
+plotDispEsts(dds_19027104_19027110_19027116_19027136_rm)
+```
+
+
+```{r heatmap}
+
+
+## create distance matrix
+dists <- dist(t(assay(rld_19027104_19027110_19027116_19027136_rm)))
+mat <- as.matrix(dists)
+rownames(mat) <- rld_19027104_19027110_19027116_19027136_rm$group
+colnames(mat) <- rld_19027104_19027110_19027116_19027136_rm$replicate
+hc <- hclust(dists)
+
+## Plot HM and save to file.  Run without the pdf() and dev.off() fxns to plot
+## in the R window before saving to file.  There are several other file type 
+## options besides pdf  
+colors<-colorRampPalette(rev(brewer.pal(9,"Blues")))(255)
+heatmap.2(mat, Rowv=as.dendrogram(hc), symm=T, trace='none',
+          col=colors)
+
+pdf(file=file.path(out,'19027104_19027110_19027116_19027136_rm_distClustering.pdf'))
+heatmap.2(mat, Rowv=as.dendrogram(hc), symm=T, trace='none',
+          col=colors)
+
+dev.off()
+```
+
+
+
+
+
+```{r DE testing}
+
+contrasts <- map(1:nrow(comparisons), function(x) {
+  treat <- comparisons[x,"treat"]
+  control <- comparisons[x,"control"]
+  
+  return(c("group",treat,control))
+})
+
+names(contrasts) <- paste(comparisons$treat,comparisons$control,sep = "vs")
+##this will do all comparisons
+Res <- lapply(contrasts,function(x) results(dds_19027104_19027110_19027116_19027136_rm,contrast=x,alpha = 0.05))
+                  
+#order the results by p-value for each comparison
+Res <- lapply(Res,function(x) x[order(x$padj), ])
+lapply(Res,summary)
+```                  
+
+
+```{r format DEtables}
+
+
+descriptions <- read.delim("/lower_bay/local_storage/annotation_db/Mus_musculus/UCSC/mm10/Annotation/Genes/mm10_gene_descriptions.txt",stringsAsFactors = F)
+### add in count means
+Res_with_means<- Map(function(x,means,comp) {
+        dat <- addMeans(x,means,comp)
+        colnames(dat)[7:8] <- paste(colnames(dat)[7:8],"count.mean",sep = ".")
+        return(dat)}
+,x=Res,comp=names(Res),MoreArgs=list(means = count_means))
+
+
+### add in fpkm meams
+Res_with_means_fpkm <- Map(function(x,means,comp) {
+        dat <- addMeans(x,means,comp)
+        colnames(dat)[9:10] <- paste(colnames(dat)[9:10],"fpkm.mean",sep = ".")
+        return(dat)}
+,x=Res_with_means,comp=names(Res),MoreArgs=list(means = fpkm_means))
+
+
+## make the gene ids a column
+Res_with_means_fpkm <- map(Res_with_means_fpkm,~rownames_to_column(.x,"GeneID"))
+
+## add annotation
+
+Res_with_annot <- map(Res_with_means_fpkm,~left_join(.x,descriptions,by=c("GeneID"="external_gene_name")))
+
+
+file_names<-file.path(out,paste0(names(Res_with_annot),"_19027104_19027110_19027116_19027136_rm_DEtable_ALL_genes.csv"))
+map2(Res_with_annot,file_names,~write.csv(.x,file = .y,row.names = F))
+```                  
+                  
+
+
+```{r get Sig Genes}
+## get significant genes
+sigRes <- lapply(Res_with_annot,function(x) subset(x, padj<=0.05))
+summary<-data.frame(Down=sapply(sigRes,function(x) nrow(subset(x,log2FoldChange < 0))),
+                    Up=sapply(sigRes,function(x) nrow(subset(x,log2FoldChange > 0))),
+                    Total=sapply(sigRes,nrow))    
+summary <- rownames_to_column(summary,"Comparison")
+
+write.table(summary,file = file.path(out,"19027104_19027110_19027116_19027136_rm_DE_summary.txt"),row.names = F,sep = "\t",col.names = F,quote=F)
+
+summary
+
+##remove dataframes with no results
+sigRes <- sigRes[sapply(sigRes,nrow)>0]
+file_names<-file.path(out,paste0(names(sigRes),"_19027104_19027110_19027116_19027136_rm_DEtable_SIG_genes.csv"))
+map2(sigRes,file_names,~write.csv(.x,file = .y,row.names = F))
+
+
+
+
+```
+
+
+```{r maPlots}
+
+Map(maPlot.lists,Res,file.path(out,names(Res)))
+
+map(Res,plotMA)         
+
+
+
+
+```
+
+#####Functional Analysis
+```{bash Cluster,eval=F}
+mkdir Cluster_Analysis
+
+ClusterProfiler.R --DE=DEseq2 --org=mm10 --out=Cluster_Analysis
+```
+
+
+```{r save}
+
+save(dds,file=file.path(out,"DESeqDataObject.rda"))
+save(rld,file = file.path(out,"rld.rda"))
+save(dds_19027104_19027110_19027116_19027136_rm,file = file.path(out,"9027104_19027110_19027116_19027136_rm_DESeqDataObject.rda"))
+save(rld_19027104_19027110_19027116_19027136_rm, file = file.path(out,"19027104_19027110_19027116_19027136_rm_rm_rld.rda"))
+
+capture.output(sessionInfo(),file = file.path(out,"SessionInfo.txt"))
+
+sessionInfo()
+```
+

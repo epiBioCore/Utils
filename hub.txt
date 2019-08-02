@@ -1,0 +1,6 @@
+hub ddarlandlab
+shortLabel Diane Darland Lab Hub
+longLabel Diane Darland Lab - University of North Dakota Epigenetics Research Group
+genomesFile genomes.txt
+email  danielle.perley@med.und.edu
+

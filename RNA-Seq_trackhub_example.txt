@@ -1,0 +1,28 @@
+##RNA Seq data
+
+track RNASeqComposite
+compositeTrack on
+subGroup treat Treatment \
+        Solo=NSC_Solo \
+        CC-C=NSC_contact \
+        CC-N=NSC_NC
+shortLabel RNA-Seq libraries
+longLabel RNA-seq tracks University of North Dakota.
+dimensions dimX=treat
+sortOrder treat=+
+autoScale on
+maxHeightPixels 200:64:8
+allButtonPair off
+type bigWig
+
+
+        track Solo_A
+        parent RNASeqComposite on
+        shortLabel Solo_A
+        longLabel Solo_A
+        bigDataUrl ../trackRepo/180820_rna-seq/M17_032_001.bw
+        subGroups treat=Solo
+        type bigWig
+        visibility dense
+
+

@@ -1,0 +1,180 @@
+	rack Solo_A 
+	parent RNASeqComposite on
+	shortLabel Solo_A
+	longLabel Solo_A 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_001.bw
+	subGroups treat=Solo
+	type bigWig
+	visibility dense
+
+
+	track Solo_B 
+	parent RNASeqComposite on
+	shortLabel Solo_B
+	longLabel Solo_B 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_002.bw
+	subGroups treat=Solo
+	type bigWig
+	visibility dense
+
+
+	track Solo_C 
+	parent RNASeqComposite on
+	shortLabel Solo_C
+	longLabel Solo_C 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_003.bw
+	subGroups treat=Solo
+	type bigWig
+	visibility dense
+
+
+	track Solo_D 
+	parent RNASeqComposite on
+	shortLabel Solo_D
+	longLabel Solo_D 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_004.bw
+	subGroups treat=Solo
+	type bigWig
+	visibility dense
+
+
+	track Solo_E 
+	parent RNASeqComposite on
+	shortLabel Solo_E
+	longLabel Solo_E 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_005.bw
+	subGroups treat=Solo
+	type bigWig
+	visibility dense
+
+
+	track Solo_F 
+	parent RNASeqComposite on
+	shortLabel Solo_F
+	longLabel Solo_F 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_006.bw
+	subGroups treat=Solo
+	type bigWig
+	visibility dense
+
+
+	track CC-N_A 
+	parent RNASeqComposite on
+	shortLabel CC-N_A
+	longLabel CC-N_A 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_007.bw
+	subGroups treat=CC-N
+	type bigWig
+	visibility dense
+
+
+	track CC-N_B 
+	parent RNASeqComposite on
+	shortLabel CC-N_B
+	longLabel CC-N_B 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_008.bw
+	subGroups treat=CC-N
+	type bigWig
+	visibility dense
+
+
+	track CC-N_C 
+	parent RNASeqComposite on
+	shortLabel CC-N_C
+	longLabel CC-N_C 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_009.bw
+	subGroups treat=CC-N
+	type bigWig
+	visibility dense
+
+
+	track CC-N_D 
+	parent RNASeqComposite on
+	shortLabel CC-N_D
+	longLabel CC-N_D 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_010.bw
+	subGroups treat=CC-N
+	type bigWig
+	visibility dense
+
+
+	track CC-N_E 
+	parent RNASeqComposite on
+	shortLabel CC-N_E
+	longLabel CC-N_E 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_011.bw
+	subGroups treat=CC-N
+	type bigWig
+	visibility dense
+
+
+	track CC-N_F 
+	parent RNASeqComposite on
+	shortLabel CC-N_F
+	longLabel CC-N_F 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_012.bw
+	subGroups treat=CC-N
+	type bigWig
+	visibility dense
+
+
+	track CC-C_A 
+	parent RNASeqComposite on
+	shortLabel CC-C_A
+	longLabel CC-C_A 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_013.bw
+	subGroups treat=CC-C
+	type bigWig
+	visibility dense
+
+
+	track CC-C_B 
+	parent RNASeqComposite on
+	shortLabel CC-C_B
+	longLabel CC-C_B 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_014.bw
+	subGroups treat=CC-C
+	type bigWig
+	visibility dense
+
+
+	track CC-C_C 
+	parent RNASeqComposite on
+	shortLabel CC-C_C
+	longLabel CC-C_C 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_015.bw
+	subGroups treat=CC-C
+	type bigWig
+	visibility dense
+
+
+	track CC-C_D 
+	parent RNASeqComposite on
+	shortLabel CC-C_D
+	longLabel CC-C_D 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_016.bw
+	subGroups treat=CC-C
+	type bigWig
+	visibility dense
+
+
+	track CC-C_E 
+	parent RNASeqComposite on
+	shortLabel CC-C_E
+	longLabel CC-C_E 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_017.bw
+	subGroups treat=CC-C
+	type bigWig
+	visibility dense
+
+
+	track CC-C_F 
+	parent RNASeqComposite on
+	shortLabel CC-C_F
+	longLabel CC-C_F 
+	bigDataUrl ../trackRepo/180820_rna-seq/M17_032_018.bw
+	subGroups treat=CC-C
+	type bigWig
+	visibility dense
+
+

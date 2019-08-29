@@ -1,0 +1,123 @@
+---
+title: "Diff Bind analysis for project 17-020"
+output: html_document
+---
+
+```{r load,results='hide',message=F,warning=F}
+library(DiffBind)
+library(tidyverse)
+library(ChIPseeker)
+library(TxDb.Mmusculus.UCSC.mm10.knownGene)
+
+theme_set(theme_bw())
+out <- "DiffBind_190828"
+if (!dir.exists(out)) {dir.create(out)}
+```
+
+Create sample sheet
+```{r}
+samples <- read.delim("macs/cocultureSamples.txt",header = F,stringsAsFactors = F,col.names=c("sample","group","coreID"))
+Replicate <- gsub(".*_rep(\\d)","\\1",samples$sample) %>% as.factor()
+bamReads <- file.path("Corrected_bams",paste0(samples$coreID,"_shifted.bam"))
+PeakCaller <- "macs"
+Peaks <- file.path("macs",paste0(samples$coreID,"_macs"),paste0(samples$coreID,"_peaks.xls"))
+diff_samples <- data.frame(SampleID=samples$sample,Condition=samples$group,Replicate=Replicate,bamReads=bamReads,Peaks=Peaks,PeakCaller=PeakCaller)
+diff_samples
+```
+```{r}
+dba_obj <- dba(sampleSheet = diff_samples)
+dba_obj
+```
+This heatmap is based on the occupancy data (logPvalue of peaks from macs2)
+```{r}
+pdf(file=file.path(out,"occupancy_correlation_heatmap.pdf"))
+plot(dba_obj)
+dev.off()
+
+plot(dba_obj)
+```
+
+  
+Counting  
+```{r}
+dba_obj <- dba.count(dba_obj,fragmentSize = 175)
+##export normalized counts
+counts_normed <- dba.peakset(dba_obj,bRetrieve=TRUE, DataType=DBA_DATA_FRAME)
+write.csv(counts_normed,file = file.path(out,"normalized_counts.csv"),row.names = F)
+
+
+```
+This heatmap is made using countData
+```{r}
+plot(dba_obj)
+
+pdf(file=file.path(out,"affinity_correlation_heatmap.pdf"))
+plot(dba_obj)
+dev.off()
+
+```
+```{r overlap}
+olap.rate <- dba.overlap(dba_obj,mode=DBA_OLAP_RATE)
+olap.rate
+```
+
+```{r}
+plot(olap.rate,type='b',ylab='# peaks', xlab='Overlap at least this many peaksets')
+```
+```{r DE}
+dba_obj <- dba.contrast(dba_obj,categories = DBA_CONDITION,dba_obj$masks$NSC_NC,dba_obj$masks$NSC_Solo,"NC","Solo")
+dba_obj <- dba.contrast(dba_obj,categories = DBA_CONDITION,dba_obj$masks$NSC_cont,dba_obj$masks$NSC_Solo,"Contact","Solo")
+dba_obj <- dba.contrast(dba_obj,categories = DBA_CONDITION,dba_obj$masks$NSC_NC,dba_obj$masks$NSC_cont,"NC","Contact")
+dba_obj <- dba.analyze(dba_obj)
+```
+```{r}
+dba.plotPCA(dba_obj,DBA_CONDITION)
+pdf(file=file.path(out,"pca.pdf"))
+dba.plotPCA(dba_obj,DBA_CONDITION)
+dev.off()
+
+```
+
+```{r}
+dba.plotPCA(dba_obj,contrast = 3)
+pdf(file = file.path(out,"PCA_of_DA_sites_NCvsContact.pdf"))
+dba.plotPCA(dba_obj,contrast = 3)
+dev.off()
+```
+
+
+```{r}
+dba.plotHeatmap(dba_obj,contrast = c(3),correlations = F,scale="row")
+
+pdf(file = file.path(out,"DA_sites_heatmap_NCvsContact.pdf"))
+dba.plotHeatmap(dba_obj,contrast = c(3),correlations = F,scale="row")
+dev.off()
+```
+
+```{r}
+dba_obj_NCvsSolo<- dba.report(dba_obj,contrast = 1)
+dba_obj_NCvsSolo
+```
+```{r}
+
+dba_obj_NCvsContact <- dba.report(dba_obj,contrast = 3)
+dba_obj_NCvsContact
+```
+
+Annotate sites
+```{r}
+txdb <- TxDb.Mmusculus.UCSC.mm10.knownGene
+NCvsContact_peakAnno <- annotatePeak(dba_obj_NCvsContact,tssRegion = c(-1000,0),TxDb = txdb,annoDb = "org.Mm.eg.db")
+```
+
+```{r}
+plotAnnoPie(NCvsContact_peakAnno)
+pdf(file=file.path(out,"pie_annotation_DA_NCvsContact.pdf"))
+plotAnnoPie(NCvsContact_peakAnno)
+dev.off()
+```
+```{r}
+annot_df <- as.data.frame(NCvsContact_peakAnno)
+write.csv(annot_df,file = file.path(out,"NCvsContat_DA_results.csv"),row.names = F)
+```
+
